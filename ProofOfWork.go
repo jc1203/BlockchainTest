@@ -2,12 +2,16 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
-	"log"
+	"crypto/sha256"
+	"fmt"
+	"math"
 	"math/big"
 )
 
-const targetBits = 24
+const (
+	maxNonce = math.MaxInt64
+	targetBits = 12
+)
 
 type ProofOfWork struct {
 	block  *Block
@@ -40,13 +44,35 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 	return data
 }
 
-// IntToHex converts an int64 to a byte array
-func IntToHex(num int64) []byte {
-	buff := new(bytes.Buffer)
-	err := binary.Write(buff, binary.BigEndian, num)
-	if err != nil {
-		log.Panic(err)
-	}
+func (pow *ProofOfWork) Run() (int, []byte) {
+	var hashInt big.Int
+	var hash [32]byte
+	nonce := 0
 
-	return buff.Bytes()
+	fmt.Printf("Mining the block containing \"%s\"\n", pow.block.Data)
+	for ; nonce < maxNonce; nonce++ {
+		data := pow.prepareData(nonce)
+		hash = sha256.Sum256(data)
+		hashInt.SetBytes(hash[:])
+
+		if hashInt.Cmp(pow.target) == -1 {
+			fmt.Printf("%x", hash)
+			break
+		}
+	}
+	fmt.Printf("\n\n")
+
+	return nonce, hash[:]
+}
+
+func (pow *ProofOfWork) Validate() bool {
+	var hashInt big.Int
+
+	data := pow.prepareData(pow.block.Nonce)
+	hash := sha256.Sum256(data)
+	hashInt.SetBytes(hash[:])
+
+	isValid := hashInt.Cmp(pow.target) == -1
+
+	return isValid
 }
